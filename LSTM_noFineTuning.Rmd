@@ -1,0 +1,271 @@
+---
+title: "Concertation_citoyenne"
+output: html_document
+date: '2023-06-11'
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Pour découpage en 2 classes: contre obligation vaccinale ou pas
+
+On recode l'encodage initial:
+0 (le plus fréquent de loin: ne parle pas de vaccination) et 1 (parle en bien de l'obligation) -> 0
+2 -> 1 : contre obligation vaccinale
+
+```{r chargement et preprocessing}
+library(keras)
+library(readr)
+library(dplyr)
+data <- read.csv("~/Desktop/Thèse/Consultation citoyenne/BDD_3classes.csv", encoding="UTF8", header=TRUE, sep=";")
+# Filter out rows where class is not 0, 1, or 2
+data <- data %>%
+  filter(class2 %in% c(0, 1, 2)) %>%
+  mutate(class2 = case_when(
+    .$class2 %in% c(0, 1) ~ 0,
+    .$class2 == 2 ~ 1
+  ))
+# Tokenization
+max_words <- 10000  # or choose another number
+tokenizer <- text_tokenizer(num_words = max_words) %>%
+  fit_text_tokenizer(data$text)
+
+sequences <- texts_to_sequences(tokenizer, data$text)
+
+# Padding
+max_length <- 100  # or choose another number based on your text data
+x_data <- pad_sequences(sequences, maxlen = max_length)
+
+# Labels
+y_data <- data$class2
+```
+
+
+
+```{r construction du modèle}
+# Split the data into training and testing sets
+set.seed(1234) # for reproducibility
+train_indices <- sample(1:nrow(data), size = 0.8 * nrow(data)) # 80% of the data
+x_train <- x_data[train_indices, ]
+y_train <- y_data[train_indices]
+x_test <- x_data[-train_indices, ]
+y_test <- y_data[-train_indices]
+
+# Define the model
+model <- keras_model_sequential() %>%
+  layer_embedding(input_dim = max_words, output_dim = 128, input_length = max_length) %>%
+  layer_lstm(units = 64, return_sequences = TRUE, kernel_regularizer = regularizer_l2(0.01)) %>%
+  layer_dropout(rate = 0.5) %>%
+  layer_lstm(units = 32, kernel_regularizer = regularizer_l2(0.01)) %>%
+  layer_dropout(rate = 0.5) %>%
+  layer_dense(units = 2, activation = 'softmax')
+
+
+# Compile the model
+model %>% compile(
+  optimizer = 'adam',
+  loss = 'sparse_categorical_crossentropy',
+  metrics = c('accuracy')
+)
+```
+
+```{r entrainement du modèle}
+# Define early stopping
+early_stopping <- callback_early_stopping(monitor = "val_loss", patience = 16)
+
+# Train the model with early stopping
+model %>% fit(x_train, y_train, epochs = 50, batch_size = 32, validation_split = 0.2, callbacks = list(early_stopping))
+```
+
+```{r données à annoter}
+
+# Loading the new data
+data_to_annotate <- read.csv("~/Desktop/Thèse/Consultation citoyenne/BDD_toannotate.csv", encoding="UTF-8")
+# Tokenization
+sequences_to_annotate <- texts_to_sequences(tokenizer, data_to_annotate$text)
+
+# Padding
+x_to_annotate <- pad_sequences(sequences_to_annotate, maxlen = max_length)
+
+# Make predictions on the data to annotate
+probabilities_to_annotate <- model %>% predict(x_to_annotate)
+
+# Convert probabilities to class labels
+predicted_classes_to_annotate <- apply(probabilities_to_annotate, 1, which.max) - 1
+
+# Add the predictions to the data frame
+data_to_annotate$predicted_class <- predicted_classes_to_annotate
+
+# Optionally, write the annotated data to a new CSV file
+write_csv(data_to_annotate, "annotated_BDD_toannotate3classes.csv")
+
+# Calculate the percentage of each class in the training data
+training_class_percentages <- table(y_train) / length(y_train) * 100
+print("Percentage of each class in the training data:")
+print(training_class_percentages)
+
+# Calculate the percentage of each class in the predictions
+predicted_class_percentages <- table(predicted_classes_to_annotate) / length(predicted_classes_to_annotate) * 100
+print("Percentage of each class in the predictions:")
+print(predicted_class_percentages)
+```
+
+
+```{r données à annoter}
+
+# Loading the new data
+data_to_annotate <- read.csv("~/Desktop/Thèse/Consultation citoyenne/BDD_toannotate.csv", encoding="UTF-8")
+# Tokenization
+sequences_to_annotate <- texts_to_sequences(tokenizer, data_to_annotate$text)
+
+# Padding
+x_to_annotate <- pad_sequences(sequences_to_annotate, maxlen = max_length)
+
+# Make predictions on the data to annotate
+probabilities_to_annotate <- model %>% predict(x_to_annotate)
+
+# Convert probabilities to class labels
+predicted_classes_to_annotate <- apply(probabilities_to_annotate, 1, which.max) - 1
+
+# Add the predictions to the data frame
+data_to_annotate$predicted_class <- predicted_classes_to_annotate
+
+# Optionally, write the annotated data to a new CSV file
+write_csv(data_to_annotate, "annotated_BDD_toannotate_4classes.csv")
+```
+
+
+
+
+## Pour découpage en 4 classes: critiques des vaccins ou pas
+
+
+Initial:
+0: neutre
+1: pour vaccins
+2: anti vax 
+3: anti vax dur
+
+On peut recoder: 2/3 ensemble vs le reste.
+
+```{r chargement et preprocessing}
+library(keras)
+library(readr)
+library(dplyr)
+data <- read.csv("~/Desktop/Thèse/Consultation citoyenne/BDD_3classes.csv", encoding="UTF8", header=TRUE, sep=";")
+# Filter out rows where class is not 0, 1, 2 or 3
+data <- data %>%
+  filter(class1 %in% c(0, 1, 2, 3)) %>%
+  mutate(class1 = case_when(
+    .$class1 %in% c(0, 1) ~ 0,
+    .$class1 %in% c(2, 3) ~ 1
+  ))
+# Tokenization
+max_words <- 10000  # or choose another number
+tokenizer <- text_tokenizer(num_words = max_words) %>%
+  fit_text_tokenizer(data$text)
+
+sequences <- texts_to_sequences(tokenizer, data$text)
+
+# Padding
+max_length <- 100  # or choose another number based on your text data
+x_data <- pad_sequences(sequences, maxlen = max_length)
+
+# Labels
+y_data <- as.integer(data$class1)
+y_data
+```
+
+
+
+```{r construction du modèle}
+# Split the data into training and testing sets
+set.seed(1234) # for reproducibility
+train_indices <- sample(1:nrow(data), size = 0.8 * nrow(data)) # 80% of the data
+x_train <- x_data[train_indices, ]
+y_train <- y_data[train_indices]
+x_test <- x_data[-train_indices, ]
+y_test <- y_data[-train_indices]
+
+# Define the model
+model <- keras_model_sequential() %>%
+  layer_embedding(input_dim = max_words, output_dim = 128, input_length = max_length) %>%
+  layer_lstm(units = 64, return_sequences = TRUE, kernel_regularizer = regularizer_l2(0.01)) %>%
+  layer_dropout(rate = 0.5) %>%
+  layer_lstm(units = 32, kernel_regularizer = regularizer_l2(0.01)) %>%
+  layer_dropout(rate = 0.5) %>%
+  layer_dense(units = 2, activation = 'softmax')
+
+# Compile the model
+model %>% compile(
+  optimizer = 'adam',
+  loss = 'sparse_categorical_crossentropy',
+  metrics = c('accuracy')
+)
+```
+
+
+
+```{r entrainement du modèle}
+model %>% fit(x_train, y_train, epochs = 15, batch_size = 32, validation_split = 0.2)
+```
+
+```{r données à annoter}
+
+# Loading the new data
+data_to_annotate <- read.csv("~/Desktop/Thèse/Consultation citoyenne/BDD_toannotate.csv", encoding="UTF-8")
+# Tokenization
+sequences_to_annotate <- texts_to_sequences(tokenizer, data_to_annotate$text)
+
+# Padding
+x_to_annotate <- pad_sequences(sequences_to_annotate, maxlen = max_length)
+
+# Make predictions on the data to annotate
+probabilities_to_annotate <- model %>% predict(x_to_annotate)
+
+# Convert probabilities to class labels
+predicted_classes_to_annotate <- apply(probabilities_to_annotate, 1, which.max) - 1
+
+# Add the predictions to the data frame
+data_to_annotate$predicted_class <- predicted_classes_to_annotate
+
+# Optionally, write the annotated data to a new CSV file
+write_csv(data_to_annotate, "annotated_BDD_toannotate3classes.csv")
+
+# Calculate the percentage of each class in the training data
+training_class_percentages <- table(y_train) / length(y_train) * 100
+print("Percentage of each class in the training data:")
+print(training_class_percentages)
+
+# Calculate the percentage of each class in the predictions
+predicted_class_percentages <- table(predicted_classes_to_annotate) / length(predicted_classes_to_annotate) * 100
+print("Percentage of each class in the predictions:")
+print(predicted_class_percentages)
+```
+
+
+```{r données à annoter}
+# Loading the new data
+data_to_annotate <- read.csv("~/Desktop/Thèse/Consultation citoyenne/BDD_toannotate.csv", encoding="UTF-8")
+# Tokenization
+sequences_to_annotate <- texts_to_sequences(tokenizer, data_to_annotate$text)
+
+# Padding
+x_to_annotate <- pad_sequences(sequences_to_annotate, maxlen = max_length)
+
+# Make predictions on the data to annotate
+probabilities_to_annotate <- model %>% predict(x_to_annotate)
+
+# Convert probabilities to class labels
+predicted_classes_to_annotate <- apply(probabilities_to_annotate, 1, which.max) - 1
+
+# Add the predictions to the data frame
+data_to_annotate$predicted_class <- predicted_classes_to_annotate
+
+# Optionally, write the annotated data to a new CSV file
+write_csv(data_to_annotate, "annotated_BDD_toannotate_4classes.csv")
+```
+
+
+
