@@ -1,0 +1,590 @@
+---
+title: "Consultation_citoyenne_v2"
+output: html_document
+date: '2023-06-12'
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+# Load libraries
+library(keras)
+library(readr)
+library(dplyr)
+
+# Load data
+data <- read.csv("~/Desktop/Thèse/Consultation citoyenne/BDD_3classes.csv", encoding="UTF8", header=TRUE, sep=";")
+
+# ------------------------- CLASS 2 -------------------------
+
+# Recode class2
+data <- data %>%
+  filter(class2 %in% c(0, 1, 2)) %>%
+  mutate(class2 = case_when(
+    .$class2 %in% c(0, 1) ~ 0,
+    .$class2 == 2 ~ 1
+  ))
+
+
+# Tokenization
+max_words <- 10000
+tokenizer <- text_tokenizer(num_words = max_words) %>%
+  fit_text_tokenizer(data$text)
+
+sequences <- texts_to_sequences(tokenizer, data$text)
+
+# Padding
+max_length <- 100
+x_data <- pad_sequences(sequences, maxlen = max_length)
+
+# Labels
+y_data <- data$class2
+
+# Split the data into training and testing sets
+set.seed(1234) # for reproducibility
+train_indices <- sample(1:nrow(data), size = 0.8 * nrow(data)) # 80% of the data
+x_train <- x_data[train_indices, ]
+y_train <- y_data[train_indices]
+x_test <- x_data[-train_indices, ]
+y_test <- y_data[-train_indices]
+
+# Parameters grid
+dropout_rates <- c(0.3, 0.5)
+unit_sizes <- c(64, 128)
+optimizers <- c('adam', 'rmsprop')
+
+# Best parameters
+best_params <- list()
+best_accuracy <- 0
+
+# Loop over parameter grid
+for (dropout_rate in dropout_rates) {
+  for (unit_size in unit_sizes) {
+    for (optimizer in optimizers) {
+      
+      # Define the model with the current parameters
+      model <- keras_model_sequential() %>%
+        layer_embedding(input_dim = max_words, output_dim = 128, input_length = max_length) %>%
+        layer_lstm(units = unit_size, return_sequences = TRUE, kernel_regularizer = regularizer_l2(0.01)) %>%
+        layer_dropout(rate = dropout_rate) %>%
+        layer_lstm(units = unit_size/2, kernel_regularizer = regularizer_l2(0.01)) %>%
+        layer_dropout(rate = dropout_rate) %>%
+        layer_dense(units = 2, activation = 'softmax')
+
+      # Compile the model
+      model %>% compile(
+        optimizer = optimizer,
+        loss = 'sparse_categorical_crossentropy',
+        metrics = c('accuracy')
+      )
+      
+      # Fit the model
+      history <- model %>% fit(
+        x_train, y_train, 
+        epochs = 50, 
+        batch_size = 32, 
+        validation_split = 0.2
+      )
+
+      # Get validation accuracy for the last epoch
+      val_accuracy <- tail(history$metrics$val_accuracy, 1)
+      
+      # Update the best parameters if needed
+      if (val_accuracy > best_accuracy) {
+        best_accuracy <- val_accuracy
+        best_params$dropout_rate <- dropout_rate
+        best_params$unit_size <- unit_size
+        best_params$optimizer <- optimizer
+      }
+    }
+  }
+}
+
+# Print best parameters
+print(best_params)
+
+# ... rest of your code for tokenization, padding, training and hyperparameter tuning ...
+
+# Print best parameters for class2
+print("Best Parameters for class2:")
+print(best_params)
+
+# ------------------------- CLASS 1 -------------------------
+
+# Recode class1
+data <- data %>%
+  mutate(class1 = case_when(
+    .$class1 %in% c(0, 1) ~ 0,
+    .$class1 %in% c(2, 3) ~ 1
+  ))
+
+# Labels for class1
+y_data_class1 <- data$class1
+
+# Split the data into training and testing sets for class1
+y_train_class1 <- y_data_class1[train_indices]
+y_test_class1 <- y_data_class1[-train_indices]
+
+# Best parameters for class1
+best_params_class1 <- list()
+best_accuracy_class1 <- 0
+
+# Loop over parameter grid for class1
+for (dropout_rate in dropout_rates) {
+  for (unit_size in unit_sizes) {
+    for (optimizer in optimizers) {
+      
+      # Define the model with the current parameters
+      model_class1 <- keras_model_sequential() %>%
+        layer_embedding(input_dim = max_words, output_dim = 128, input_length = max_length) %>%
+        layer_lstm(units = unit_size, return_sequences = TRUE, kernel_regularizer = regularizer_l2(0.01)) %>%
+        layer_dropout(rate = dropout_rate) %>%
+        layer_lstm(units = unit_size/2, kernel_regularizer = regularizer_l2(0.01)) %>%
+        layer_dropout(rate = dropout_rate) %>%
+        layer_dense(units = 2, activation = 'softmax')
+
+      # Compile the model for class1
+      model_class1 %>% compile(
+        optimizer = optimizer,
+        loss = 'sparse_categorical_crossentropy',
+        metrics = c('accuracy')
+      )
+      
+      # Fit the model for class1
+      history_class1 <- model_class1 %>% fit(
+        x_train, y_train_class1, 
+        epochs = 50, 
+        batch_size = 32, 
+        validation_split = 0.2
+      )
+
+      # Get validation accuracy for the last epoch for class1
+      val_accuracy_class1 <- tail(history_class1$metrics$val_accuracy, 1)
+      
+      # Update the best parameters for class1 if needed
+      if (val_accuracy_class1 > best_accuracy_class1) {
+        best_accuracy_class1 <- val_accuracy_class1
+        best_params_class1$dropout_rate <- dropout_rate
+        best_params_class1$unit_size <- unit_size
+        best_params_class1$optimizer <- optimizer
+      }
+    }
+  }
+}
+
+# Print best parameters for class1
+print("Best Parameters for class1:")
+print(best_params_class1)
+```
+
+## Train test and prediction
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+
+# Train the model for class2 with early stopping
+model %>% fit(x_train, y_train, epochs = 50, batch_size = 32, validation_split = 0.2)
+
+# Train the model for class1 with early stopping
+model_class1 %>% fit(x_train, y_train_class1, epochs = 50, batch_size = 32, validation_split = 0.2)
+
+# ----------------------- Making predictions on new data --------------------------
+
+# Loading the new data
+data_to_annotate <- read.csv("~/Desktop/Thèse/Consultation citoyenne/BDD_toannotate.csv", encoding="UTF-8")
+
+# Tokenization
+sequences_to_annotate <- texts_to_sequences(tokenizer, data_to_annotate$text)
+
+# Padding
+x_to_annotate <- pad_sequences(sequences_to_annotate, maxlen = max_length)
+
+# Make predictions on the data to annotate for class2
+probabilities_to_annotate_class2 <- model %>% predict(x_to_annotate)
+
+# Convert probabilities to class labels for class2
+predicted_classes_to_annotate_class2 <- apply(probabilities_to_annotate_class2, 1, which.max) - 1
+
+# Make predictions on the data to annotate for class1
+probabilities_to_annotate_class1 <- model_class1 %>% predict(x_to_annotate)
+
+# Convert probabilities to class labels for class1
+predicted_classes_to_annotate_class1 <- apply(probabilities_to_annotate_class1, 1, which.max) - 1
+
+# Add the predictions to the data frame
+data_to_annotate$predicted_class2 <- predicted_classes_to_annotate_class2
+data_to_annotate$predicted_class1 <- predicted_classes_to_annotate_class1
+
+# Optionally, write the annotated data to a new CSV file
+write.csv(data_to_annotate, "annotated_BDD_toannotate_both_classes.csv", row.names = FALSE)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+
+```{r binding, echo=FALSE}
+library(dplyr)
+
+# Make sure training data has the same columns as the annotated data
+training_data <- data
+training_data$predicted_class2 <- y_data
+training_data$predicted_class1 <- y_data_class1 # assuming y_data_class1 contains the class 1 values in training data
+
+# Bind the training data and the annotated data together
+all_data <- bind_rows(training_data, data_to_annotate)
+
+# Optionally, write the combined data to a new CSV file
+write.csv(all_data, "combined_data_with_annotations.csv", row.names = FALSE)
+```
+
+
+```{r table puis viz, echo=FALSE}
+# Assuming all_data is your data frame containing the predicted classes
+
+# Rename values in the columns for better readability
+all_data$class1 <- factor(all_data$class1,
+                         levels = c(0, 1),
+                         labels = c("ne critique pas la vaccination", "critique la vaccination"))
+
+all_data$class2 <- factor(all_data$class2,
+                         levels = c(0, 1),
+                         labels = c("ne critique pas l'obligation vaccinale", "critique l'obligation vaccinale"))
+
+# Calculate the counts for each combination
+counts <- table(all_data$class1, all_data$class2)
+
+# Convert the counts to proportions
+proportions <- counts / sum(counts)
+
+# Display the proportions table
+print(proportions)
+
+
+# Convert the matrix to a data frame for ggplot
+proportions_df <- as.data.frame(as.table(proportions))
+names(proportions_df) <- c("Class1", "Class2", "Proportion")
+
+# Create the heatmap
+library(ggplot2)
+heatmap_train <- ggplot(proportions_df, aes(x = Class1, y = Class2, fill = Proportion)) +
+  geom_tile() +
+  geom_text(aes(label = scales::percent(Proportion, scale = 100)), size = 4) +
+  scale_fill_gradient(low = "white", high = "steelblue") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  labs(x = "Vaccination", y = "Obligation", fill = "Proportion", title = "Combinaison des classes annotées et prédites: répartition")
+heatmap_train
+
+```
+
+# Topic modeling
+
+On fusionne des textes.
+
+```{r fusion, echo=FALSE}
+library(dplyr)
+
+# Define the subcategories
+subcategories <- list(c(0, 0), c(0, 1), c(1, 0), c(1, 1))
+
+# Concatenate texts for each subcategory
+text_subcat_00 <- paste(all_data %>% filter(predicted_class1 == 0, predicted_class2 == 0) %>% pull(text), collapse = " ")
+text_subcat_01 <- paste(all_data %>% filter(predicted_class1 == 0, predicted_class2 == 1) %>% pull(text), collapse = " ")
+text_subcat_10 <- paste(all_data %>% filter(predicted_class1 == 1, predicted_class2 == 0) %>% pull(text), collapse = " ")
+text_subcat_11 <- paste(all_data %>% filter(predicted_class1 == 1, predicted_class2 == 1) %>% pull(text), collapse = " ")
+```
+
+## Text subcat_00
+
+```{r lda subcat_00, echo=FALSE}
+library(tm)
+library(topicmodels)
+library(ldatuning)
+library(LDAvis)
+
+# For stopwords
+MesStopWords <- c("à_le", "de_le", "-être", "faire", "falloir", "savoir", "pouvoir", "devoir", "devoir", "voir", "vouloir", "cest", "nest", "non", "plus", "être", "fait", "'", "'", "’", "’", "’", "quand", "auprès", "autre", "’", "delà", "dela", "contre", "faut", "autres", "celle", "celle-ci", "celle-là", "déjà", "chacun", "tout", "tous", "deja")
+
+# Use `text_subcat_00` as the text input
+concatenated_text <- text_subcat_00
+
+# Create a corpus from the concatenated text
+corpus <- Corpus(VectorSource(concatenated_text))
+
+# Preprocessing
+corpus <- tm_map(corpus, content_transformer(tolower))
+corpus <- tm_map(corpus, removeWords, stopwords("fr"))
+corpus <- tm_map(corpus, removeWords, MesStopWords)
+corpus <- tm_map(corpus, removePunctuation)
+corpus <- tm_map(corpus, removeNumbers)
+
+
+# Use available stopword list from url
+corpus <- tm_map(corpus, stripWhitespace)
+
+# Create a Document-Term Matrix
+dtm <- DocumentTermMatrix(corpus)
+
+# Find optimal number of topics
+k_values <- seq(3, 10, by=1)
+result <- FindTopicsNumber(
+  dtm,
+  topics = k_values,
+  metrics = c("Griffiths2004", "CaoJuan2009", "Arun2010", "Deveaud2014"),
+  method = "Gibbs",
+  control = list(seed = 1234),
+  mc.cores = 2L,
+  verbose = TRUE
+)
+# optimal_k <- result$knee_point
+# commenté car nul
+
+FindTopicsNumber_plot(result)
+```
+
+Après visualisation des graphes, on choisit le nombre de thèmes
+
+```{r}
+## Set parameters for Gibbs sampling
+#Le modèle va tourner 2000 fois avant de commencer à enregistrer les résultats
+burnin <- 2000
+#Après cela il va encore tourner 2000 fois
+iter <- 2000
+# Il ne va enregistrer le résultat que toutes les 500 itérations
+thin <- 500
+#seed et nstart pour la reproductibilité
+SEED=c(1, 2, 3, 4, 5)
+seed <-SEED
+nstart <- 5
+#Seul meilleur modèle est utilisé
+best <- TRUE
+#7 topics
+lda_gibbs_5 <- LDA(dtm, 5, method="Gibbs", control=list(nstart=nstart, seed=seed, best=best, burnin=burnin, iter=iter, thin=thin))
+#10 topics
+lda_gibbs_8 <- LDA(dtm, 8, method="Gibbs", control=list(nstart=nstart, seed=seed, best=best, burnin=burnin, iter=iter, thin=thin))
+#lda_gibbs_9 <- LDA(dtm, 9, method="Gibbs", control=list(nstart=nstart, seed=seed, best=best, burnin=burnin, iter=iter, thin=thin))
+```
+
+
+Je peux désormais voir les premiers résultats pour chacun des modèles. Il s'agit de de mots dont la fréquence d'utilisation est corrélée
+
+```{r}
+"LDA GIBBS 5"
+termsTopic <- as.data.frame(terms(lda_gibbs_5,10))
+head(termsTopic,11)
+"LDA GIBBS 8"
+termsTopic <- as.data.frame(terms(lda_gibbs_8,10))
+head(termsTopic,11)
+```
+
+
+## Text subcat_01
+
+
+```{r lda subcat_01, echo=FALSE}
+library(tm)
+library(topicmodels)
+library(ldatuning)
+library(LDAvis)
+
+# For stopwords
+MesStopWords <- c("à_le", "de_le", "-être", "faire", "falloir", "savoir", "pouvoir", "devoir", "devoir", "voir", "vouloir", "cest", "nest", "non", "plus", "être", "fait", "'", "'", "’", "’", "’", "quand", "auprès", "autre", "’", "delà", "dela", "contre", "faut", "autres", "celle", "celle-ci", "celle-là", "déjà", "chacun", "tout", "tous", "deja")
+
+# Use `text_subcat_00` as the text input
+concatenated_text <- text_subcat_01
+
+# Create a corpus from the concatenated text
+corpus <- Corpus(VectorSource(concatenated_text))
+
+# Preprocessing
+corpus <- tm_map(corpus, content_transformer(tolower))
+corpus <- tm_map(corpus, removeWords, stopwords("fr"))
+corpus <- tm_map(corpus, removeWords, MesStopWords)
+corpus <- tm_map(corpus, removePunctuation)
+corpus <- tm_map(corpus, removeNumbers)
+
+
+# Use available stopword list from url
+corpus <- tm_map(corpus, stripWhitespace)
+
+# Create a Document-Term Matrix
+dtm <- DocumentTermMatrix(corpus)
+
+# Find optimal number of topics
+k_values <- seq(3, 10, by=1)
+result <- FindTopicsNumber(
+  dtm,
+  topics = k_values,
+  metrics = c("Griffiths2004", "CaoJuan2009", "Arun2010", "Deveaud2014"),
+  method = "Gibbs",
+  control = list(seed = 1234),
+  mc.cores = 2L,
+  verbose = TRUE
+)
+# optimal_k <- result$knee_point
+# commenté car nul
+
+FindTopicsNumber_plot(result)
+```
+
+Après visualisation des graphes, on choisit le nombre de thèmes: 6
+
+```{r}
+## Set parameters for Gibbs sampling
+#Le modèle va tourner 2000 fois avant de commencer à enregistrer les résultats
+burnin <- 2000
+#Après cela il va encore tourner 2000 fois
+iter <- 2000
+# Il ne va enregistrer le résultat que toutes les 500 itérations
+thin <- 500
+#seed et nstart pour la reproductibilité
+SEED=c(1, 2, 3, 4, 5)
+seed <-SEED
+nstart <- 5
+#Seul meilleur modèle est utilisé
+best <- TRUE
+#6 topics
+lda_gibbs_6 <- LDA(dtm, 6, method="Gibbs", control=list(nstart=nstart, seed=seed, best=best, burnin=burnin, iter=iter, thin=thin))
+```
+
+```{r}
+"LDA GIBBS 6"
+termsTopic <- as.data.frame(terms(lda_gibbs_6,10))
+head(termsTopic,11)
+```
+
+## Text subcat_11
+
+```{r lda subcat_11, echo=FALSE}
+library(tm)
+library(topicmodels)
+library(ldatuning)
+library(LDAvis)
+
+# For stopwords
+MesStopWords <- c("à_le", "de_le", "-être", "faire", "falloir", "savoir", "pouvoir", "devoir", "devoir", "voir", "vouloir", "cest", "nest", "non", "plus", "être", "fait", "'", "'", "’", "’", "’", "quand", "auprès", "autre", "’", "delà", "dela", "contre", "faut", "autres", "celle", "celle-ci", "celle-là", "déjà", "chacun", "tout", "tous", "deja", "puisqu", "lors")
+
+# Use `text_subcat_00` as the text input
+concatenated_text <- text_subcat_11
+
+# Create a corpus from the concatenated text
+corpus <- Corpus(VectorSource(concatenated_text))
+
+# Preprocessing
+corpus <- tm_map(corpus, content_transformer(tolower))
+corpus <- tm_map(corpus, removeWords, stopwords("fr"))
+corpus <- tm_map(corpus, removeWords, MesStopWords)
+corpus <- tm_map(corpus, removePunctuation)
+corpus <- tm_map(corpus, removeNumbers)
+
+
+# Use available stopword list from url
+corpus <- tm_map(corpus, stripWhitespace)
+
+# Create a Document-Term Matrix
+dtm <- DocumentTermMatrix(corpus)
+
+# Find optimal number of topics
+k_values <- seq(3, 10, by=1)
+result <- FindTopicsNumber(
+  dtm,
+  topics = k_values,
+  metrics = c("Griffiths2004", "CaoJuan2009", "Arun2010", "Deveaud2014"),
+  method = "Gibbs",
+  control = list(seed = 1234),
+  mc.cores = 2L,
+  verbose = TRUE
+)
+# optimal_k <- result$knee_point
+# commenté car nul
+
+FindTopicsNumber_plot(result)
+```
+
+Après visualisation des graphes, on choisit le nombre de thèmes: 5
+
+```{r}
+## Set parameters for Gibbs sampling
+#Le modèle va tourner 2000 fois avant de commencer à enregistrer les résultats
+burnin <- 2000
+#Après cela il va encore tourner 2000 fois
+iter <- 2000
+# Il ne va enregistrer le résultat que toutes les 500 itérations
+thin <- 500
+#seed et nstart pour la reproductibilité
+SEED=c(1, 2, 3, 4, 5)
+seed <-SEED
+nstart <- 5
+#Seul meilleur modèle est utilisé
+best <- TRUE
+#6 topics
+lda_gibbs_5 <- LDA(dtm, 5, method="Gibbs", control=list(nstart=nstart, seed=seed, best=best, burnin=burnin, iter=iter, thin=thin))
+#6 topics
+lda_gibbs_8 <- LDA(dtm, 8, method="Gibbs", control=list(nstart=nstart, seed=seed, best=best, burnin=burnin, iter=iter, thin=thin))
+```
+
+```{r}
+"LDA GIBBS 5"
+termsTopic <- as.data.frame(terms(lda_gibbs_5,10))
+head(termsTopic,11)
+"LDA GIBBS 8"
+termsTopic <- as.data.frame(terms(lda_gibbs_8,10))
+head(termsTopic,11)
+```
+
+## Text subcat_10
+
+```{r lda subcat_10, echo=FALSE}
+library(tm)
+library(topicmodels)
+library(ldatuning)
+library(LDAvis)
+
+# For stopwords
+MesStopWords <- c("à_le", "de_le", "-être", "faire", "falloir", "savoir", "pouvoir", "devoir", "devoir", "voir", "vouloir", "cest", "nest", "non", "plus", "être", "fait", "'", "'", "’", "’", "’", "quand", "auprès", "autre", "’", "delà", "dela", "contre", "faut", "autres", "celle", "celle-ci", "celle-là", "déjà", "chacun", "tout", "tous", "deja", "puisqu")
+
+# Use `text_subcat_00` as the text input
+concatenated_text <- text_subcat_10
+
+# Create a corpus from the concatenated text
+corpus <- Corpus(VectorSource(concatenated_text))
+
+# Preprocessing
+corpus <- tm_map(corpus, content_transformer(tolower))
+corpus <- tm_map(corpus, removeWords, stopwords("fr"))
+corpus <- tm_map(corpus, removeWords, MesStopWords)
+corpus <- tm_map(corpus, removePunctuation)
+corpus <- tm_map(corpus, removeNumbers)
+
+
+# Use available stopword list from url
+corpus <- tm_map(corpus, stripWhitespace)
+
+# Create a Document-Term Matrix
+dtm <- DocumentTermMatrix(corpus)
+
+# Find optimal number of topics
+k_values <- seq(3, 10, by=1)
+result <- FindTopicsNumber(
+  dtm,
+  topics = k_values,
+  metrics = c("Griffiths2004", "CaoJuan2009", "Arun2010", "Deveaud2014"),
+  method = "Gibbs",
+  control = list(seed = 1234),
+  mc.cores = 2L,
+  verbose = TRUE
+)
+# optimal_k <- result$knee_point
+# commenté car nul
+
+FindTopicsNumber_plot(result)
+```
+
+
