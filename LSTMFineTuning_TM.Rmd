@@ -303,22 +303,32 @@ text_subcat_11 <- paste(all_data %>% filter(predicted_class1 == 1, predicted_cla
 
 ## Text subcat_00
 
-```{r lda subcat_00, echo=FALSE}
+```{r}
 library(tm)
 library(topicmodels)
 library(ldatuning)
 library(LDAvis)
+library(textstem)
 
 # For stopwords
-MesStopWords <- c("à_le", "de_le", "-être", "faire", "falloir", "savoir", "pouvoir", "devoir", "devoir", "voir", "vouloir", "cest", "nest", "non", "plus", "être", "fait", "'", "'", "’", "’", "’", "quand", "auprès", "autre", "’", "delà", "dela", "contre", "faut", "autres", "celle", "celle-ci", "celle-là", "déjà", "chacun", "tout", "tous", "deja")
+MesStopWords <- c("peut-être", "faire", "falloir", "savoir", "pouvoir", "devoir", "voir", "vouloir", "cest", "nest", "non", "plus", "être", "fait", "quand", "auprès", "autre", "’", "delà", "dela", "contre", "dès", "faut", "autres","celle-ci", "celle-là", "celle", "celui", "déjà", "chacun", "tout", "tous", "deja", "là", "jusqu", "chez", "puisque", "comme", "donc", "peut", "car", "très", "aussi", "lequel", "lesquels", "laquelle", "lesquelles", "tel", "tels", "telle", "telles", "où", "ceux-ci", "ceux-là", "ceux", "même", "meme", "afin", "aucun", "aucune", "aucunes", "dont", "certains", "certaines", "entre")
 
 # Use `text_subcat_00` as the text input
 concatenated_text <- text_subcat_00
+
+
+# Function to normalize apostrophes
+normalize_apostrophes <- function(text) {
+  # Replace curly single quotes and prime character with straight single quote
+  text <- gsub("‘|’|′", "'", text)
+  return(text)
+}
 
 # Create a corpus from the concatenated text
 corpus <- Corpus(VectorSource(concatenated_text))
 
 # Preprocessing
+corpus <- tm_map(corpus, content_transformer(normalize_apostrophes))
 corpus <- tm_map(corpus, content_transformer(tolower))
 corpus <- tm_map(corpus, removeWords, stopwords("fr"))
 corpus <- tm_map(corpus, removeWords, MesStopWords)
@@ -329,11 +339,14 @@ corpus <- tm_map(corpus, removeNumbers)
 # Use available stopword list from url
 corpus <- tm_map(corpus, stripWhitespace)
 
+# Lemmatization
+# corpus <- tm_map(corpus, content_transformer(lemmatize_strings), language = "fr")
+
 # Create a Document-Term Matrix
 dtm <- DocumentTermMatrix(corpus)
 
 # Find optimal number of topics
-k_values <- seq(3, 10, by=1)
+k_values <- seq(3, 12, by=1)
 result <- FindTopicsNumber(
   dtm,
   topics = k_values,
@@ -349,7 +362,7 @@ result <- FindTopicsNumber(
 FindTopicsNumber_plot(result)
 ```
 
-Après visualisation des graphes, on choisit le nombre de thèmes
+Après visualisation des graphes, on choisit le nombre de thèmes (5 ou 11)
 
 ```{r}
 ## Set parameters for Gibbs sampling
@@ -365,45 +378,85 @@ seed <-SEED
 nstart <- 5
 #Seul meilleur modèle est utilisé
 best <- TRUE
-#7 topics
 lda_gibbs_5 <- LDA(dtm, 5, method="Gibbs", control=list(nstart=nstart, seed=seed, best=best, burnin=burnin, iter=iter, thin=thin))
-#10 topics
-lda_gibbs_8 <- LDA(dtm, 8, method="Gibbs", control=list(nstart=nstart, seed=seed, best=best, burnin=burnin, iter=iter, thin=thin))
-#lda_gibbs_9 <- LDA(dtm, 9, method="Gibbs", control=list(nstart=nstart, seed=seed, best=best, burnin=burnin, iter=iter, thin=thin))
+#lda_gibbs_6 <- LDA(dtm, 6, method="Gibbs", control=list(nstart=nstart, seed=seed, best=best, burnin=burnin, iter=iter, thin=thin))
+#lda_gibbs_7 <- LDA(dtm, 7, method="Gibbs", control=list(nstart=nstart, seed=seed, best=best, burnin=burnin, iter=iter, thin=thin))
+#lda_gibbs_8 <- LDA(dtm, 8, method="Gibbs", control=list(nstart=nstart, seed=seed, best=best, burnin=burnin, iter=iter, thin=thin))
+#lda_gibbs_00 <- LDA(dtm, 10, method="Gibbs", control=list(nstart=nstart, seed=seed, best=best, burnin=burnin, iter=iter, thin=thin))
+#lda_gibbs_00 <- LDA(dtm, 11, method="Gibbs", control=list(nstart=nstart, seed=seed, best=best, burnin=burnin, iter=iter, thin=thin))
 ```
 
 
 Je peux désormais voir les premiers résultats pour chacun des modèles. Il s'agit de de mots dont la fréquence d'utilisation est corrélée
 
 ```{r}
-"LDA GIBBS 5"
-termsTopic <- as.data.frame(terms(lda_gibbs_5,10))
-head(termsTopic,11)
+termsTopic_00_5top <- as.data.frame(terms(lda_gibbs_5,10))
+head(termsTopic_00_5top,11)
+#"LDA GIBBS 6"
+#termsTopic_00_6top <- as.data.frame(terms(lda_gibbs_6,10))
+#head(termsTopic_00_6top,11)
+#"LDA GIBBS 7"
+#termsTopic_00_7top <- as.data.frame(terms(lda_gibbs_7,10))
+#head(termsTopic_00_7top,11)
 "LDA GIBBS 8"
-termsTopic <- as.data.frame(terms(lda_gibbs_8,10))
-head(termsTopic,11)
+"LDA GIBBS 11"
+#termsTopic_00_00top <- as.data.frame(terms(lda_gibbs_00,10))
+#head(termsTopic_00_00top,11)
+```
+
+```{r}
+library(topicmodels)
+library(tidytext)
+topics_00 <- tidy(lda_gibbs_5, matrix = "beta")
+topics_00
+```
+
+```{r}
+library("dplyr")
+top_terms_00 <- topics_00 %>%
+  group_by(topic) %>%
+  top_n(10, beta) %>%
+  ungroup()  %>%
+  arrange(topic, -beta)
+#Je fais un graph
+top_terms_00 %>%
+  mutate(term = reorder_within(term, beta, topic)) %>%
+  ggplot(aes(term, beta, fill = factor(topic))) + geom_col(show.legend = FALSE) +
+                                                  facet_wrap(~ topic, scales = "free") +
+                                                  coord_flip() +
+                                                  scale_x_reordered()
+
 ```
 
 
 ## Text subcat_01
 
-
-```{r lda subcat_01, echo=FALSE}
+```{r}
 library(tm)
 library(topicmodels)
 library(ldatuning)
 library(LDAvis)
+library(textstem)
 
 # For stopwords
-MesStopWords <- c("à_le", "de_le", "-être", "faire", "falloir", "savoir", "pouvoir", "devoir", "devoir", "voir", "vouloir", "cest", "nest", "non", "plus", "être", "fait", "'", "'", "’", "’", "’", "quand", "auprès", "autre", "’", "delà", "dela", "contre", "faut", "autres", "celle", "celle-ci", "celle-là", "déjà", "chacun", "tout", "tous", "deja")
+MesStopWords <- c("peut-être", "faire", "falloir", "savoir", "pouvoir", "devoir", "voir", "vouloir", "cest", "nest", "non", "plus", "être", "fait", "quand", "auprès", "autre", "’", "delà", "dela", "contre", "dès", "faut", "autres","celle-ci", "celle-là", "celle", "celui", "déjà", "chacun", "tout", "tous", "deja", "là", "jusqu", "chez", "puisque", "comme", "donc", "peut", "car", "très", "aussi", "lequel", "lesquels", "laquelle", "lesquelles", "tel", "tels", "telle", "telles", "où", "ceux-ci", "ceux-là", "ceux", "même", "meme", "afin", "aucun", "aucune", "aucunes", "dont")
 
-# Use `text_subcat_00` as the text input
+# Use `text_subcat_01` as the text input
 concatenated_text <- text_subcat_01
+
+
+# Function to normalize apostrophes
+normalize_apostrophes <- function(text) {
+  # Replace curly single quotes and prime character with straight single quote
+  text <- gsub("‘|’|′", "'", text)
+  return(text)
+}
 
 # Create a corpus from the concatenated text
 corpus <- Corpus(VectorSource(concatenated_text))
 
 # Preprocessing
+corpus <- tm_map(corpus, content_transformer(normalize_apostrophes))
 corpus <- tm_map(corpus, content_transformer(tolower))
 corpus <- tm_map(corpus, removeWords, stopwords("fr"))
 corpus <- tm_map(corpus, removeWords, MesStopWords)
@@ -414,11 +467,14 @@ corpus <- tm_map(corpus, removeNumbers)
 # Use available stopword list from url
 corpus <- tm_map(corpus, stripWhitespace)
 
+# Lemmatization
+# corpus <- tm_map(corpus, content_transformer(lemmatize_strings), language = "fr")
+
 # Create a Document-Term Matrix
 dtm <- DocumentTermMatrix(corpus)
 
 # Find optimal number of topics
-k_values <- seq(3, 10, by=1)
+k_values <- seq(3, 12, by=1)
 result <- FindTopicsNumber(
   dtm,
   topics = k_values,
@@ -434,7 +490,7 @@ result <- FindTopicsNumber(
 FindTopicsNumber_plot(result)
 ```
 
-Après visualisation des graphes, on choisit le nombre de thèmes: 6
+Après visualisation des graphes, on choisit le nombre de thèmes: 9.
 
 ```{r}
 ## Set parameters for Gibbs sampling
@@ -450,34 +506,88 @@ seed <-SEED
 nstart <- 5
 #Seul meilleur modèle est utilisé
 best <- TRUE
-#6 topics
-lda_gibbs_6 <- LDA(dtm, 6, method="Gibbs", control=list(nstart=nstart, seed=seed, best=best, burnin=burnin, iter=iter, thin=thin))
+#lda_gibbs_6 <- LDA(dtm, 6, method="Gibbs", control=list(nstart=nstart, seed=seed, best=best, burnin=burnin, iter=iter, thin=thin))
+#lda_gibbs_7 <- LDA(dtm, 7, method="Gibbs", control=list(nstart=nstart, seed=seed, best=best, burnin=burnin, iter=iter, thin=thin))
+#lda_gibbs_8 <- LDA(dtm, 8, method="Gibbs", control=list(nstart=nstart, seed=seed, best=best, burnin=burnin, iter=iter, thin=thin))
+lda_gibbs_9 <- LDA(dtm, 9, method="Gibbs", control=list(nstart=nstart, seed=seed, best=best, burnin=burnin, iter=iter, thin=thin))
+#lda_gibbs_10 <- LDA(dtm, 10, method="Gibbs", control=list(nstart=nstart, seed=seed, best=best, burnin=burnin, iter=iter, thin=thin))
+#lda_gibbs_11 <- LDA(dtm, 11, method="Gibbs", control=list(nstart=nstart, seed=seed, best=best, burnin=burnin, iter=iter, thin=thin))
+```
+
+
+Je peux désormais voir les premiers résultats pour chacun des modèles. Il s'agit de de mots dont la fréquence d'utilisation est corrélée
+
+```{r}
+#"LDA GIBBS 6"
+#termsTopic_01_6top <- as.data.frame(terms(lda_gibbs_6,10))
+#head(termsTopic_01_6top,11)
+#"LDA GIBBS 7"
+#termsTopic_01_7top <- as.data.frame(terms(lda_gibbs_7,10))
+#head(termsTopic_01_7top,11)
+"LDA GIBBS 9"
+termsTopic_01_9top <- as.data.frame(terms(lda_gibbs_9,10))
+head(termsTopic_01_9top,11)
+#"LDA GIBBS 10"
+#termsTopic_01_10top <- as.data.frame(terms(lda_gibbs_10,10))
+#head(termsTopic_01_10top,11)
+#"LDA GIBBS 11"
+#termsTopic_01_11top <- as.data.frame(terms(lda_gibbs_11,10))
+#head(termsTopic_01_11top,11)
 ```
 
 ```{r}
-"LDA GIBBS 6"
-termsTopic <- as.data.frame(terms(lda_gibbs_6,10))
-head(termsTopic,11)
+library(topicmodels)
+library(tidytext)
+topics_01 <- tidy(lda_gibbs_9, matrix = "beta")
+topics_01
 ```
+
+```{r}
+library("dplyr")
+top_terms_01 <- topics_01 %>%
+  group_by(topic) %>%
+  top_n(10, beta) %>%
+  ungroup()  %>%
+  arrange(topic, -beta)
+#Je fais un graph
+top_terms_01 %>%
+  mutate(term = reorder_within(term, beta, topic)) %>%
+  ggplot(aes(term, beta, fill = factor(topic))) + geom_col(show.legend = FALSE) +
+                                                  facet_wrap(~ topic, scales = "free") +
+                                                  coord_flip() +
+                                                  scale_x_reordered()
+```
+
+
 
 ## Text subcat_11
 
-```{r lda subcat_11, echo=FALSE}
+```{r}
 library(tm)
 library(topicmodels)
 library(ldatuning)
 library(LDAvis)
+library(textstem)
 
 # For stopwords
-MesStopWords <- c("à_le", "de_le", "-être", "faire", "falloir", "savoir", "pouvoir", "devoir", "devoir", "voir", "vouloir", "cest", "nest", "non", "plus", "être", "fait", "'", "'", "’", "’", "’", "quand", "auprès", "autre", "’", "delà", "dela", "contre", "faut", "autres", "celle", "celle-ci", "celle-là", "déjà", "chacun", "tout", "tous", "deja", "puisqu", "lors")
+MesStopWords <- c("peut-être", "faire", "falloir", "savoir", "pouvoir", "devoir", "voir", "vouloir", "cest", "nest", "non", "plus", "être", "fait", "quand", "auprès", "autre", "’", "delà", "dela", "contre", "dès", "faut", "autres","celle-ci", "celle-là", "celle", "celui", "déjà", "chacun", "tout", "tous", "deja", "là", "jusqu", "chez", "puisque", "comme", "donc", "peut", "car", "très", "aussi", "lequel", "lesquels", "laquelle", "lesquelles", "tel", "tels", "telle", "telles", "où", "ceux-ci", "ceux-là", "ceux", "même", "meme", "afin", "aucun", "aucune", "aucunes", "dont", "certains", "certaines", "entre")
 
-# Use `text_subcat_00` as the text input
+# Use `text_subcat_11` as the text input
 concatenated_text <- text_subcat_11
+
+
+# Function to normalize apostrophes
+normalize_apostrophes <- function(text) {
+  # Replace curly single quotes and prime character with straight single quote
+  text <- gsub("‘|’|′", "'", text)
+  return(text)
+}
 
 # Create a corpus from the concatenated text
 corpus <- Corpus(VectorSource(concatenated_text))
 
 # Preprocessing
+corpus <- tm_map(corpus, content_transformer(normalize_apostrophes))
 corpus <- tm_map(corpus, content_transformer(tolower))
 corpus <- tm_map(corpus, removeWords, stopwords("fr"))
 corpus <- tm_map(corpus, removeWords, MesStopWords)
@@ -488,11 +598,14 @@ corpus <- tm_map(corpus, removeNumbers)
 # Use available stopword list from url
 corpus <- tm_map(corpus, stripWhitespace)
 
+# Lemmatization
+# corpus <- tm_map(corpus, content_transformer(lemmatize_strings), language = "fr")
+
 # Create a Document-Term Matrix
 dtm <- DocumentTermMatrix(corpus)
 
 # Find optimal number of topics
-k_values <- seq(3, 10, by=1)
+k_values <- seq(3, 12, by=1)
 result <- FindTopicsNumber(
   dtm,
   topics = k_values,
@@ -508,7 +621,7 @@ result <- FindTopicsNumber(
 FindTopicsNumber_plot(result)
 ```
 
-Après visualisation des graphes, on choisit le nombre de thèmes: 5
+Après visualisation des graphes, on choisit le nombre de thèmes (5 ou 11)
 
 ```{r}
 ## Set parameters for Gibbs sampling
@@ -524,39 +637,84 @@ seed <-SEED
 nstart <- 5
 #Seul meilleur modèle est utilisé
 best <- TRUE
-#6 topics
 lda_gibbs_5 <- LDA(dtm, 5, method="Gibbs", control=list(nstart=nstart, seed=seed, best=best, burnin=burnin, iter=iter, thin=thin))
-#6 topics
-lda_gibbs_8 <- LDA(dtm, 8, method="Gibbs", control=list(nstart=nstart, seed=seed, best=best, burnin=burnin, iter=iter, thin=thin))
+#lda_gibbs_6 <- LDA(dtm, 6, method="Gibbs", control=list(nstart=nstart, seed=seed, best=best, burnin=burnin, iter=iter, thin=thin))
+#lda_gibbs_7 <- LDA(dtm, 7, method="Gibbs", control=list(nstart=nstart, seed=seed, best=best, burnin=burnin, iter=iter, thin=thin))
+#lda_gibbs_8 <- LDA(dtm, 8, method="Gibbs", control=list(nstart=nstart, seed=seed, best=best, burnin=burnin, iter=iter, thin=thin))
+#lda_gibbs_10 <- LDA(dtm, 10, method="Gibbs", control=list(nstart=nstart, seed=seed, best=best, burnin=burnin, iter=iter, thin=thin))
+lda_gibbs_11 <- LDA(dtm, 11, method="Gibbs", control=list(nstart=nstart, seed=seed, best=best, burnin=burnin, iter=iter, thin=thin))
+```
+
+
+Je peux désormais voir les premiers résultats pour chacun des modèles. Il s'agit de de mots dont la fréquence d'utilisation est corrélée
+
+```{r}
+termsTopic_11_5top <- as.data.frame(terms(lda_gibbs_5,10))
+head(termsTopic_11_5top,11)
+#"LDA GIBBS 6"
+#termsTopic_11_6top <- as.data.frame(terms(lda_gibbs_6,10))
+#head(termsTopic_11_6top,11)
+#"LDA GIBBS 7"
+#termsTopic_11_7top <- as.data.frame(terms(lda_gibbs_7,10))
+#head(termsTopic_11_7top,11)
+"LDA GIBBS 8"
+"LDA GIBBS 11"
+termsTopic_11_11top <- as.data.frame(terms(lda_gibbs_11,10))
+head(termsTopic_11_11top,11)
 ```
 
 ```{r}
-"LDA GIBBS 5"
-termsTopic <- as.data.frame(terms(lda_gibbs_5,10))
-head(termsTopic,11)
-"LDA GIBBS 8"
-termsTopic <- as.data.frame(terms(lda_gibbs_8,10))
-head(termsTopic,11)
+library(topicmodels)
+library(tidytext)
+topics_11 <- tidy(lda_gibbs_11, matrix = "beta")
+topics_11
+```
+
+```{r}
+library("dplyr")
+top_terms_11 <- topics_11 %>%
+  group_by(topic) %>%
+  top_n(10, beta) %>%
+  ungroup()  %>%
+  arrange(topic, -beta)
+#Je fais un graph
+top_terms_11 %>%
+  mutate(term = reorder_within(term, beta, topic)) %>%
+  ggplot(aes(term, beta, fill = factor(topic))) + geom_col(show.legend = FALSE) +
+                                                  facet_wrap(~ topic, scales = "free") +
+                                                  coord_flip() +
+                                                  scale_x_reordered()
+
 ```
 
 ## Text subcat_10
 
-```{r lda subcat_10, echo=FALSE}
+```{r}
 library(tm)
 library(topicmodels)
 library(ldatuning)
 library(LDAvis)
+library(textstem)
 
 # For stopwords
-MesStopWords <- c("à_le", "de_le", "-être", "faire", "falloir", "savoir", "pouvoir", "devoir", "devoir", "voir", "vouloir", "cest", "nest", "non", "plus", "être", "fait", "'", "'", "’", "’", "’", "quand", "auprès", "autre", "’", "delà", "dela", "contre", "faut", "autres", "celle", "celle-ci", "celle-là", "déjà", "chacun", "tout", "tous", "deja", "puisqu")
+MesStopWords <- c("peut-être", "faire", "falloir", "savoir", "pouvoir", "devoir", "voir", "vouloir", "cest", "nest", "non", "plus", "être", "fait", "quand", "auprès", "autre", "’", "delà", "dela", "contre", "dès", "faut", "autres","celle-ci", "celle-là", "celle", "celui", "déjà", "chacun", "tout", "tous", "deja", "là", "jusqu", "chez", "puisque", "comme", "donc", "peut", "car", "très", "aussi", "lequel", "lesquels", "laquelle", "lesquelles", "tel", "tels", "telle", "telles", "où", "ceux-ci", "ceux-là", "ceux", "même", "meme", "afin", "aucun", "aucune", "aucunes", "dont", "certains", "certaines", "entre")
 
-# Use `text_subcat_00` as the text input
+# Use `text_subcat_10` as the text input
 concatenated_text <- text_subcat_10
+
+
+# Function to normalize apostrophes
+normalize_apostrophes <- function(text) {
+  # Replace curly single quotes and prime character with straight single quote
+  text <- gsub("‘|’|′", "'", text)
+  return(text)
+}
 
 # Create a corpus from the concatenated text
 corpus <- Corpus(VectorSource(concatenated_text))
 
 # Preprocessing
+corpus <- tm_map(corpus, content_transformer(normalize_apostrophes))
 corpus <- tm_map(corpus, content_transformer(tolower))
 corpus <- tm_map(corpus, removeWords, stopwords("fr"))
 corpus <- tm_map(corpus, removeWords, MesStopWords)
@@ -567,11 +725,14 @@ corpus <- tm_map(corpus, removeNumbers)
 # Use available stopword list from url
 corpus <- tm_map(corpus, stripWhitespace)
 
+# Lemmatization
+# corpus <- tm_map(corpus, content_transformer(lemmatize_strings), language = "fr")
+
 # Create a Document-Term Matrix
 dtm <- DocumentTermMatrix(corpus)
 
 # Find optimal number of topics
-k_values <- seq(3, 10, by=1)
+k_values <- seq(3, 12, by=1)
 result <- FindTopicsNumber(
   dtm,
   topics = k_values,
@@ -585,6 +746,72 @@ result <- FindTopicsNumber(
 # commenté car nul
 
 FindTopicsNumber_plot(result)
+```
+
+Après visualisation des graphes, on choisit le nombre de thèmes: 6.
+
+```{r}
+## Set parameters for Gibbs sampling
+#Le modèle va tourner 2000 fois avant de commencer à enregistrer les résultats
+burnin <- 2000
+#Après cela il va encore tourner 2000 fois
+iter <- 2000
+# Il ne va enregistrer le résultat que toutes les 500 itérations
+thin <- 500
+#seed et nstart pour la reproductibilité
+SEED=c(1, 2, 3, 4, 5)
+seed <-SEED
+nstart <- 5
+#Seul meilleur modèle est utilisé
+best <- TRUE
+#lda_gibbs_5 <- LDA(dtm, 5, method="Gibbs", control=list(nstart=nstart, seed=seed, best=best, burnin=burnin, iter=iter, thin=thin))
+lda_gibbs_6 <- LDA(dtm, 6, method="Gibbs", control=list(nstart=nstart, seed=seed, best=best, burnin=burnin, iter=iter, thin=thin))
+#lda_gibbs_7 <- LDA(dtm, 7, method="Gibbs", control=list(nstart=nstart, seed=seed, best=best, burnin=burnin, iter=iter, thin=thin))
+#lda_gibbs_8 <- LDA(dtm, 8, method="Gibbs", control=list(nstart=nstart, seed=seed, best=best, burnin=burnin, iter=iter, thin=thin))
+#lda_gibbs_10 <- LDA(dtm, 10, method="Gibbs", control=list(nstart=nstart, seed=seed, best=best, burnin=burnin, iter=iter, thin=thin))
+#lda_gibbs_10 <- LDA(dtm, 11, method="Gibbs", control=list(nstart=nstart, seed=seed, best=best, burnin=burnin, iter=iter, thin=thin))
+```
+
+
+Je peux désormais voir les premiers résultats pour chacun des modèles. Il s'agit de de mots dont la fréquence d'utilisation est corrélée
+
+```{r}
+#termsTopic_10_5top <- as.data.frame(terms(lda_gibbs_5,10))
+#head(termsTopic_10_5top,11)
+"LDA GIBBS 6"
+termsTopic_10_6top <- as.data.frame(terms(lda_gibbs_6,10))
+head(termsTopic_10_6top,11)
+#"LDA GIBBS 7"
+#termsTopic_10_7top <- as.data.frame(terms(lda_gibbs_7,10))
+#head(termsTopic_10_7top,11)
+"LDA GIBBS 8"
+"LDA GIBBS 11"
+#termsTopic_10_10top <- as.data.frame(terms(lda_gibbs_10,10))
+#head(termsTopic_10_10top,11)
+```
+
+```{r}
+library(topicmodels)
+library(tidytext)
+topics_10 <- tidy(lda_gibbs_6, matrix = "beta")
+topics_10
+```
+
+```{r}
+library("dplyr")
+top_terms_10 <- topics_10 %>%
+  group_by(topic) %>%
+  top_n(10, beta) %>%
+  ungroup()  %>%
+  arrange(topic, -beta)
+#Je fais un graph
+top_terms_10 %>%
+  mutate(term = reorder_within(term, beta, topic)) %>%
+  ggplot(aes(term, beta, fill = factor(topic))) + geom_col(show.legend = FALSE) +
+                                                  facet_wrap(~ topic, scales = "free") +
+                                                  coord_flip() +
+                                                  scale_x_reordered()
+
 ```
 
 
