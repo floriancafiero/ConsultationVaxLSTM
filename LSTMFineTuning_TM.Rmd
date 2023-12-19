@@ -108,8 +108,6 @@ for (dropout_rate in dropout_rates) {
 # Print best parameters
 print(best_params)
 
-# ... rest of your code for tokenization, padding, training and hyperparameter tuning ...
-
 # Print best parameters for class2
 print("Best Parameters for class2:")
 print(best_params)
@@ -223,7 +221,6 @@ data_to_annotate$predicted_class1 <- predicted_classes_to_annotate_class1
 write.csv(data_to_annotate, "annotated_BDD_toannotate_both_classes.csv", row.names = FALSE)
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
 
 ```{r binding, echo=FALSE}
 library(dplyr)
@@ -281,7 +278,6 @@ heatmap_train
 
 # Topic modeling
 
-On fusionne des textes.
 
 ```{r fusion, echo=FALSE}
 library(dplyr)
