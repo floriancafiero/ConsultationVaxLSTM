@@ -184,8 +184,6 @@ print(best_params_class1)
 
 ## Train test and prediction
 
-You can also embed plots, for example:
-
 ```{r pressure, echo=FALSE}
 
 # Train the model for class2 with early stopping
