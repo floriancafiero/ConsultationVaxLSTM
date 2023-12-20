@@ -1,7 +1,6 @@
 ---
 title: "Consultation_citoyenne_v2"
 output: html_document
-date: '2023-06-12'
 ---
 
 ```{r setup, include=FALSE}
